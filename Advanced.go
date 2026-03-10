@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -523,7 +524,8 @@ func EditNode(w http.ResponseWriter, r *http.Request) {
 			var Data EditNodeType
 			Data.HeaderType = GetAdvancedHeader(User, tabName, "", r)
 
-			Data.FileName = fileName
+			sip := GetSIPProtocol(r)
+			Data.FileName = fmt.Sprintf("%s.conf", sip)
 			AgentUrl := GetConfigValueFrom(pbxfile, "url", "")
 			if AgentUrl != "" {
 				if string(AgentUrl[len(AgentUrl)-1]) != "/" {
@@ -545,7 +547,7 @@ func EditNode(w http.ResponseWriter, r *http.Request) {
 
 			if Data.NodeName != "" {
 				if r.FormValue("add") != "" && User.Admin {
-					message := addNewNode(fileName, Data.NodeName, r.FormValue("content"), AgentUrl)
+					message := addNewNode(Data.FileName, Data.NodeName, r.FormValue("content"), AgentUrl)
 					if message == "" {
 						WriteLog(User.Name + " Added: " + Data.NodeName)
 						Data.Message = "New node " + Data.NodeName + " has been added"
@@ -558,7 +560,7 @@ func EditNode(w http.ResponseWriter, r *http.Request) {
 				Data.Edit = r.FormValue("edit") != "" && User.Admin
 				var message string
 				if Data.IsAdmin {
-					res, err := SaveNode(r, fileName, Data.NodeName, AgentUrl)
+					res, err := SaveNode(r, Data.FileName, Data.NodeName, AgentUrl)
 					if err != nil {
 						message = err.Error()
 					} else if !res.Success {
@@ -566,7 +568,7 @@ func EditNode(w http.ResponseWriter, r *http.Request) {
 					} else {
 						Data.Message = "Saved"
 						Data.MessageType = "infomessage"
-						Data.Command, Data.Caption = GetReloadCommand(fileName)
+						Data.Command, Data.Caption = GetReloadCommand(Data.FileName)
 					}
 
 					if message != "" {
@@ -575,7 +577,7 @@ func EditNode(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 
-				Data.Content, message = GetNodeContent(fileName, AgentUrl, Data.NodeName)
+				Data.Content, message = GetNodeContent(Data.FileName, AgentUrl, Data.NodeName)
 				if message != "" {
 					Data.Message = message
 					Data.MessageType = "errormessage"
