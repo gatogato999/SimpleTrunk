@@ -69,7 +69,7 @@ func main() {
 	http.HandleFunc(prefix+"/EditFile", EditFile)
 	//Sound
 	http.HandleFunc(prefix+"/UploadSound", UploadSound)
-	http.HandleFunc(prefix+"/PlaySound", PlaySound)
+	http.HandleFunc(prefix+"/DownloadSound", DownloadSound)
 	http.HandleFunc(prefix+"/UploadSoundFile", UploadSoundFile)
 
 	//PBX

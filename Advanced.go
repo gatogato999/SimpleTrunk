@@ -1055,7 +1055,7 @@ func UploadSound(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func PlaySound(w http.ResponseWriter, r *http.Request) {
+func DownloadSound(w http.ResponseWriter, r *http.Request) {
 	exist, _ := CheckSession(r)
 	if exist {
 		pbx := GetCookieValue(r, "file")
