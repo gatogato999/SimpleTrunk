@@ -1,14 +1,16 @@
 package main
 
 import (
+	"archive/zip"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -903,6 +905,8 @@ func Config(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Backup is used to get pbx configuration files from /home/user/simpletrunk/pbxs/
+// then zip them and Download the zip file to the user
 func Backup(w http.ResponseWriter, r *http.Request) {
 	exist, _ := CheckSession(r)
 	if exist {
@@ -916,26 +920,41 @@ func Backup(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			WriteLog("Download file called from: " + r.RemoteAddr)
+			sourceDir := GetPBXDir()
 			w.Header().Set("Content-Type", "application/zip")
+			w.Header().Set("Content-Disposition", "attachment; filename="+pbx+".zip")
 
-			obj := make(map[string]interface{})
-			obj["directory"] = "/etc/asterisk/"
-			obj["ext"] = ".conf"
-			obj["name"] = pbxfile
+			zipWriter := zip.NewWriter(w)
+			defer zipWriter.Close()
 
-			bytes, _ := json.Marshal(obj)
-			WriteLog("Downloading: " + pbx)
-			w.Header().Set("Content-Disposition", "attachment;filename="+pbx+".zip")
-
-			op, err := DownloadFile(AgentUrl+"BackupFiles", bytes, "application/zip", w)
-			if err != nil {
-				WriteLog("Error downloading file: " + err.Error())
-				return
+			walkError := filepath.Walk(sourceDir, func(path string, info fs.FileInfo, err error) error {
+				if err != nil{
+					return err
+				}
+				if info.IsDir(){
+					return nil
+				}
+				relativePath , err := filepath.Rel(sourceDir, path)
+				if err != nil{
+					return err
+				}
+				configurationBackupZipFile , err := zipWriter.Create(relativePath)
+				if err != nil{
+					return err
+				}
+				bxpConfiguratoinFile , err := os.Open(path)
+				if err != nil{
+					return err
+				}
+				_, err = io.Copy(configurationBackupZipFile, bxpConfiguratoinFile )
+				if err != nil{
+					return err
+				}
+				return nil
+			})
+			if walkError !=nil{
+				WriteLog("Error walking through files : \t "+walkError.Error())
 			}
-
-			WriteLog("Size: " + strconv.FormatInt(op.Size, 10))
-			r.ContentLength = op.Size
-
 		} else {
 			http.Redirect(w, r, "Home?m=Select%20PBX", http.StatusTemporaryRedirect)
 		}
@@ -1359,6 +1378,10 @@ func AMIUsers(pbxfile, Aurl string) (users []AMIUserType, success bool, err erro
 					spl := strings.Split(res.Result, ";")
 					for i := 0; i+1 < len(spl); i++ {
 						spl1 := strings.Split(spl[i], ":")
+						// prevent the runtime error when reading comments
+						if len(spl1) < 2{
+							continue
+						}
 						user := strings.ReplaceAll(spl1[0], "[", "")
 						user = strings.ReplaceAll(user, "]", "")
 						users = append(users, AMIUserType{User: user, Spl: spl1, Default: getDefault(user, spl1[1], pbxfile)})
